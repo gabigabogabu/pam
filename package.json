@@ -1,0 +1,20 @@
+{
+  "name": "llmmailbox",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/imapflow": "^1.0.19",
+    "@types/lodash": "^4.17.15",
+    "dotenv": "^16.4.7",
+    "imapflow": "^1.0.181",
+    "lodash": "^4.17.21",
+    "openai": "^4.84.0",
+    "zod": "^3.24.2"
+  }
+}
