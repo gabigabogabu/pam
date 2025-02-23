@@ -1,5 +1,5 @@
 {
-  "name": "llmmailbox",
+  "name": "pam",
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
