@@ -11,16 +11,8 @@
             "name": "Debug File",
             "program": "${file}",
             "cwd": "${workspaceFolder}",
-            "stopOnEntry": true,
-            "watchMode": false
-        },
-        {
-            "type": "bun",
-            "internalConsoleOptions": "neverOpen",
-            "request": "attach",
-            "name": "Attach Bun",
-            "url": "ws://localhost:6499/",
-            "stopOnEntry": false
+            "stopOnEntry": false,
+            "watchMode": true
         }
     ]
 }
