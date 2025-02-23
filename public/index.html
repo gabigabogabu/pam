@@ -18,34 +18,28 @@
             display: none;
         }
 
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
-        }
-
-        .animate-pulse-slow {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        .ellipsis-button {
+        .action-button {
             cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 0.875rem;
+            padding: 0.25rem 0.5rem;
             user-select: none;
+        }
+
+        .message-group:hover .action-button {
             opacity: 0.7;
         }
 
-        .ellipsis-button:hover {
-            opacity: 1;
+        .action-button:hover {
+            opacity: 1 !important;
         }
 
-        .message-divider[hidden] {
-            display: none;
+        .button-group {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
         }
     </style>
 </head>
@@ -53,7 +47,7 @@
 <body class="h-full">
     <div class="min-h-full bg-white">
         <header class="bg-white shadow">
-            <div class="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+            <div class="mx-auto px-4 py-6 sm:px-6 lg:px-8">
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900">PAM - Personal Automated Mail</h1>
             </div>
         </header>
@@ -88,7 +82,7 @@
             </button>
         </form>
 
-        <main class="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
+        <main class="mx-auto p-4 sm:p-6 lg:p-8">
             <div id="messages" class="space-y-6 mb-4 max-h-[calc(100vh-16rem)] overflow-y-auto"></div>
 
             <form id="input-form" class="sticky bottom-0 bg-white pt-4">
@@ -164,9 +158,9 @@
 
             const messagesHtml = messages.map((msg, index) => {
                 const isSystemMessage = msg.role === 'developer' || msg.role === 'system' || (msg.role === 'assistant' && msg.content.includes('```'));
-                const divider = index < messages.length - 1 ? 
+                const divider = index < messages.length - 1 ?
                     `<div class="message-divider border-t border-gray-200 my-2" ${isSystemMessage ? 'hidden="true"' : ''}></div>` : '';
-                return `<div class="message-content ${isSystemMessage ? 'text-gray-600 text-sm' : ''}" ${isSystemMessage ? 'hidden="true"' : ''}>
+                return `<div class="message-content ${isSystemMessage ? 'text-gray-600 text-sm' : ''}" ${isSystemMessage ? 'hidden="true"' : ''} data-message-id="${msg.id}">
                     <pre class="whitespace-pre-wrap break-words font-sans">${msg.content}</pre>
                     ${divider}
                 </div>`;
@@ -176,16 +170,75 @@
                 <div class="message-group flex ${isUser ? 'justify-end' : 'justify-start'}">
                     <div class="${isUser ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-900'} rounded-lg px-4 py-2 max-w-[80%] relative">
                         ${messagesHtml}
-                        ${hasHiddenMessages ? `
-                            <div class="ellipsis-button mt-1" role="button">
-                                <span class="text-sm">...</span>
+                        ${(hasHiddenMessages || !isUser) ? `
+                            <div class="button-group">
+                                ${!isUser ? `<button class="action-button reload-button" title="Regenerate response">↻</button>` : ''}
+                                ${hasHiddenMessages ? `
+                                    <div class="action-button ellipsis-button" role="button">
+                                        <span>...</span>
+                                    </div>
+                                ` : ''}
                             </div>
                         ` : ''}
                     </div>
                 </div>`;
         }
 
-        messagesDiv.addEventListener('click', (e) => {
+            async function handleRegeneration(messages) {
+                try {
+                    processing = true;
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            messages,
+                            imapConfig: getImapConfig()
+                        })
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    if (!response.body) throw new Error('Response has no readable body');
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            if (!line.startsWith('data:')) continue;
+                            const data = line.slice(5).trim();
+                            if (data === '[DONE]') continue;
+
+                            const message = JSON.parse(data);
+                            messages.push(message);
+                            saveMessages(messages);
+                            renderMessages(messages);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to regenerate response:', error);
+                    // Add error message to the chat
+                    messages.push({
+                        id: crypto.randomUUID(),
+                        role: 'assistant',
+                        content: '❌ Failed to regenerate response. Please try again.',
+                        timestamp: new Date().toISOString()
+                    });
+                    saveMessages(messages);
+                    renderMessages(messages);
+                } finally {
+                    processing = false;
+                }
+            }
+
+            messagesDiv.addEventListener('click', async (e) => {
             if (e.target.closest('.ellipsis-button')) {
                 const group = e.target.closest('.message-group');
                 const hiddenContents = group.querySelectorAll('.message-content[hidden], .message-divider[hidden]');
@@ -201,7 +254,6 @@
                         if (content.textContent.includes('```') ||
                             content.classList.contains('text-gray-600')) {
                             content.setAttribute('hidden', 'true');
-                            // Hide the divider above this hidden message
                             const divider = content.querySelector('.message-divider');
                             if (divider) divider.setAttribute('hidden', 'true');
                         }
@@ -210,6 +262,23 @@
 
                 const ellipsisButton = e.target.closest('.ellipsis-button');
                 ellipsisButton.querySelector('span').textContent = isHidden ? '↑' : '...';
+            } else if (e.target.closest('.reload-button') && !processing) {
+                const messageGroup = e.target.closest('.message-group');
+                const firstMessageId = messageGroup.querySelector('.message-content').dataset.messageId;
+
+                // Get all messages
+                const messages = JSON.parse(localStorage.getItem(STORAGE_KEYS.MESSAGES) || '[]');
+
+                // Find the index of the message to reload
+                const messageIndex = messages.findIndex(m => m.id === firstMessageId);
+                if (messageIndex === -1) return;
+
+                // Keep only messages up to the clicked one
+                const updatedMessages = messages.slice(0, messageIndex);
+                saveMessages(updatedMessages);
+                renderMessages(updatedMessages);
+
+                await handleRegeneration(updatedMessages);
             }
         });
 
@@ -284,38 +353,9 @@
         }
 
         async function processServerSentEvents(response) {
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    messageInput.disabled = false;
-                    processing = false;
-                    break;
-                }
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    if (!line.startsWith('data:')) continue;
-                    const data = line.slice(5).trim();
-                    if (data === '[DONE]') {
-                        processing = false;
-                        messageInput.disabled = false;
-                        continue;
-                    }
-
-                    const message = JSON.parse(data);
-                    const messages = loadMessages();
-                    messages.push(message);
-                    saveMessages(messages);
-                    renderMessages(messages);
-                }
-            }
+            const messages = loadMessages();
+            await handleRegeneration(messages);
+            messageInput.disabled = false;
         }
 
         inputForm.addEventListener('submit', async (e) => {
