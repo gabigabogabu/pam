@@ -1,308 +1,369 @@
 <!DOCTYPE html>
-<html>
+<html class="h-full bg-gray-50">
+
 <head>
     <title>Email Assistant Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background: #f5f5f5;
+        * {
+            font-family: 'Inter', sans-serif;
         }
 
-        header {
-            background: #2c3e50;
-            color: white;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .message[hidden] {
+            display: none;
         }
 
-        #messages { 
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+        .message-content[hidden] {
+            display: none;
         }
 
-        .message {
-            max-width: 85%;
-            padding: 0.8rem;
-            border-radius: 12px;
-            position: relative;
-            transition: opacity 0.2s ease;
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
-        .message strong {
-            font-size: 0.8em;
-            text-transform: uppercase;
-            opacity: 0.7;
+        .animate-pulse-slow {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
-        .user {
-            color: #2c3e50;
-            background: #fff;
-            align-self: flex-end;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .assistant, .system, .developer {
-            color: #2c3e50;
-            background: #e3f2fd;
-            align-self: flex-start;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .message pre {
-            margin: 0.5rem 0;
-            white-space: pre-wrap;
-            font-size: 0.95em;
-        }
-
-        .message.collapsed {
+        .ellipsis-button {
             cursor: pointer;
-            max-width: fit-content;
-            padding: 0.4rem 0.8rem;
-            background: #eee;
-            border-radius: 12px;
-            margin-bottom: 0;
-        }
-
-        .message.collapsed + .message.collapsed {
-            display: none;
-        }
-
-        .message-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            position: relative;
-        }
-
-        .message.collapsed pre,
-        .message.collapsed .collapsible {
-            display: none;
-        }
-
-        .message.collapsed strong {
-            display: none;
-        }
-
-        .message.collapsed::after {
-            content: "thinking...";
-            font-size: 0.9em;
-            color: #666;
-        }
-
-        .message.system.collapsed,
-        .message.developer.collapsed {
+            user-select: none;
             opacity: 0.7;
         }
 
-        .collapsible {
-            position: absolute;
-            right: 0.8rem;
-            top: 0.8rem;
-            border: none;
-            background: rgba(0,0,0,0.1);
-            color: inherit;
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: monospace;
-            font-size: 1em;
-            line-height: 1;
-            opacity: 0.7;
-            transition: opacity 0.2s ease;
-        }
-
-        .collapsible:hover {
+        .ellipsis-button:hover {
             opacity: 1;
         }
 
-        #input-form {
-            background: white;
-            padding: 1rem;
-            display: flex;
-            gap: 0.8rem;
-            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
-        }
-
-        #message-input {
-            flex-grow: 1;
-            padding: 0.8rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.2s ease;
-        }
-
-        #message-input:focus {
-            outline: none;
-            border-color: #2c3e50;
-        }
-
-        #message-input:disabled {
-            background: #f5f5f5;
-            cursor: not-allowed;
-        }
-
-        button[type="submit"] {
-            padding: 0 1.5rem;
-            background: #2c3e50;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.2s ease;
-        }
-
-        button[type="submit"]:hover {
-            background: #34495e;
-        }
-
-        button[type="submit"]:disabled {
-            background: #95a5a6;
-            cursor: not-allowed;
+        .message-divider[hidden] {
+            display: none;
         }
     </style>
 </head>
-<body>
-    <header>
-        <h1>Email Assistant</h1>
-    </header>
-    <div id="messages"></div>
-    <form id="input-form">
-        <input type="text" id="message-input" placeholder="Ask about your emails..." autocomplete="off">
-        <button type="submit">Send</button>
-    </form>
+
+<body class="h-full">
+    <div class="min-h-full bg-white">
+        <header class="bg-white shadow">
+            <div class="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Email Assistant</h1>
+            </div>
+        </header>
+
+        <form id="config-form" class="mx-auto max-w-xl p-6 bg-white rounded-lg shadow-lg space-y-6 mt-8">
+            <h2 class="text-xl font-semibold text-gray-900">IMAP Configuration</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="host" class="block text-sm font-medium text-gray-700">Host</label>
+                    <input type="text" id="host" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="port" class="block text-sm font-medium text-gray-700">Port</label>
+                    <input type="number" id="port" value="993" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="username" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+            </div>
+            <button type="submit"
+                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Save Configuration
+            </button>
+        </form>
+
+        <main class="mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
+            <div id="messages" class="space-y-6 mb-4 max-h-[calc(100vh-16rem)] overflow-y-auto"></div>
+
+            <form id="input-form" class="sticky bottom-0 bg-white pt-4">
+                <div class="flex gap-4 items-end">
+                    <textarea id="message-input" rows="1"
+                        class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        placeholder="Ask about your emails..."></textarea>
+                    <button type="submit"
+                        class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                        Send
+                    </button>
+                </div>
+            </form>
+        </main>
+    </div>
+
     <script>
+        const STORAGE_KEYS = {
+            MESSAGES: 'email-assistant-messages',
+            CONFIG: 'email-assistant-config'
+        };
+
         const messagesDiv = document.getElementById('messages');
+        const exampleMessage = document.getElementById('example-message');
         const inputForm = document.getElementById('input-form');
         const messageInput = document.getElementById('message-input');
-        let lastMessageCount = 0;
+        const configForm = document.getElementById('config-form');
+        let processing = false;
 
-        function toggleMessage(event) {
-            const messageDiv = event.currentTarget;
-            if (messageDiv.classList.contains('message')) {
-                messageDiv.classList.toggle('collapsed');
-                const button = messageDiv.querySelector('.collapsible');
-                if (button) {
-                    button.textContent = messageDiv.classList.contains('collapsed') ? '▼' : '▲';
-                }
+        function autoResizeTextarea() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+        }
+
+        messageInput.addEventListener('input', autoResizeTextarea);
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                inputForm.dispatchEvent(new Event('submit'));
             }
-        }
+        });
 
-        function toggleGroup(event) {
-            const messageDiv = event.currentTarget;
-            const group = messageDiv.closest('.message-group');
-            if (!group) return;
-            
-            const messages = group.querySelectorAll('.message');
-            messages.forEach(msg => {
-                msg.classList.toggle('collapsed');
-                const button = msg.querySelector('.collapsible');
-                if (button) {
-                    button.textContent = msg.classList.contains('collapsed') ? '▼' : '▲';
+        function renderMessages(messages) {
+            const groups = messages.reduce((acc, msg) => {
+                if (msg.role === 'user') {
+                    acc.push([msg]);
+                    return acc;
                 }
-            });
+                const lastGroup = acc[acc.length - 1] || [];
+                if (lastGroup.length > 0 && lastGroup[0].role !== 'user') {
+                    lastGroup.push(msg);
+                } else {
+                    acc.push([msg]);
+                }
+                return acc;
+            }, []);
+
+            const html = groups.map(group => renderMessageGroup(group)).join('');
+
+            messagesDiv.innerHTML = html;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        async function loadMessages() {
-            const response = await fetch('/api/chat');
-            const data = await response.json();
-            if (data.chat.length !== lastMessageCount) {
-                // Group messages
-                const messageGroups = [];
-                let currentGroup = [];
+        function renderMessageGroup(messages) {
+            if (messages.length === 0) return '';
 
-                data.chat.forEach((msg, index) => {
-                    const isSystemOrDev = msg.role === 'system' || msg.role === 'developer';
-                    const isAssistantWithCode = msg.role === 'assistant' && msg.content.includes('```');
-                    const shouldCollapse = isSystemOrDev || isAssistantWithCode;
-                    const nextMsg = data.chat[index + 1];
-                    const nextShouldCollapse = nextMsg && 
-                        (nextMsg.role === 'system' || 
-                         nextMsg.role === 'developer' || 
-                         (nextMsg.role === 'assistant' && nextMsg.content.includes('```')));
+            const isUser = messages[0].role === 'user';
+            const hasHiddenMessages = messages.some(m =>
+                m.role === 'system' ||
+                m.role === 'developer' ||
+                (m.role === 'assistant' && m.content.includes('```'))
+            );
 
-                    currentGroup.push({
-                        ...msg,
-                        shouldCollapse
-                    });
+            const messagesHtml = messages.map((msg, index) => {
+                const isSystemMessage = msg.role === 'developer' || msg.role === 'system' || (msg.role === 'assistant' && msg.content.includes('```'));
+                const divider = index < messages.length - 1 ? 
+                    `<div class="message-divider border-t border-gray-200 my-2" ${isSystemMessage ? 'hidden="true"' : ''}></div>` : '';
+                return `<div class="message-content ${isSystemMessage ? 'text-gray-600 text-sm' : ''}" ${isSystemMessage ? 'hidden="true"' : ''}>
+                    <pre class="whitespace-pre-wrap break-words font-sans">${msg.content}</pre>
+                    ${divider}
+                </div>`;
+            }).join('');
 
-                    if (!nextShouldCollapse || !shouldCollapse) {
-                        messageGroups.push(currentGroup);
-                        currentGroup = [];
-                    }
+            return `
+                <div class="message-group flex ${isUser ? 'justify-end' : 'justify-start'}">
+                    <div class="${isUser ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-900'} rounded-lg px-4 py-2 max-w-[80%] relative">
+                        ${messagesHtml}
+                        ${hasHiddenMessages ? `
+                            <div class="ellipsis-button mt-1" role="button">
+                                <span class="text-sm">...</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>`;
+        }
+
+        messagesDiv.addEventListener('click', (e) => {
+            if (e.target.closest('.ellipsis-button')) {
+                const group = e.target.closest('.message-group');
+                const hiddenContents = group.querySelectorAll('.message-content[hidden], .message-divider[hidden]');
+                const isHidden = hiddenContents.length > 0;
+
+                hiddenContents.forEach(content => {
+                    content.removeAttribute('hidden');
                 });
 
-                if (currentGroup.length > 0) {
-                    messageGroups.push(currentGroup);
+                if (!isHidden) {
+                    const contents = group.querySelectorAll('.message-content');
+                    contents.forEach((content, index) => {
+                        if (content.textContent.includes('```') ||
+                            content.classList.contains('text-gray-600')) {
+                            content.setAttribute('hidden', 'true');
+                            // Hide the divider above this hidden message
+                            const divider = content.querySelector('.message-divider');
+                            if (divider) divider.setAttribute('hidden', 'true');
+                        }
+                    });
                 }
 
-                // Render message groups
-                messagesDiv.innerHTML = messageGroups.map(group => {
-                    if (group.length === 1) {
-                        const msg = group[0];
-                        const collapsedClass = msg.shouldCollapse ? ' collapsed' : '';
-                        const toggleText = msg.shouldCollapse ? '▼' : '▲';
-                        return `<div class="message ${msg.role}${collapsedClass}" onclick="toggleMessage(event)">
-                            <strong>${msg.role}:</strong>
-                            <button class="collapsible">${toggleText}</button>
-                            <pre style="white-space: pre-wrap;">${msg.content}</pre>
-                        </div>`;
+                const ellipsisButton = e.target.closest('.ellipsis-button');
+                ellipsisButton.querySelector('span').textContent = isHidden ? '↑' : '...';
+            }
+        });
+
+        function loadMessages() {
+            const messages = JSON.parse(localStorage.getItem(STORAGE_KEYS.MESSAGES) || '[]');
+            if (messages.length === 0) {
+                const testCommand = `return (async () => { await imapClient.mailboxOpen('INBOX'); const messages = await imapClient.search({ seen: false }); return messages?.length || 0; })();`;
+                const initialMessages = [{
+                    role: 'developer',
+                    content: `You are a very helpful assistant. You are tasked with managing an important person's email inbox.\nYou have access to a preconfigured ImapFlow client.\n\`\`\`js\nimport { ImapFlow } from 'imapflow';\nconst imapClient = new ImapFlow({\n\thost: env.EMAIL_HOST,\n\tport: env.EMAIL_PORT,\n\tsecure: true,\n\tauth: {\n\t\tuser: env.EMAIL_USER,\n\t\tpass: env.EMAIL_PASS,\n\t},\n\tlogger: false,});\nawait imapClient.connect();\n\`\`\`\nUse it to help the person manage their email inbox. Do not use logging as a means of returning data. Instead, return the data directly from the function. The code you submit will be awaited.\nFor example, to get the number of unread emails, you can use the following code:\n\`\`\`js\n${testCommand}\n\`\`\``,
+                }];
+
+                messages.push(...initialMessages.map(msg => {
+                    msg.id = crypto.randomUUID();
+                    msg.timestamp = new Date().toISOString();
+                    return msg;
+                }));
+                saveMessages(messages);
+            }
+            renderMessages(messages);
+            return messages;
+        }
+
+        function saveMessages(messages) {
+            localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
+        }
+
+        function getImapConfig() {
+            return JSON.parse(localStorage.getItem(STORAGE_KEYS.CONFIG));
+        }
+
+        function showConfigForm() {
+            const config = getImapConfig();
+            if (config) {
+                document.getElementById('host').value = config.host;
+                document.getElementById('port').value = config.port;
+                document.getElementById('username').value = config.auth.user;
+                document.getElementById('password').value = config.auth.pass;
+            }
+            configForm.classList.remove('hidden');
+        }
+
+        function hideConfigForm() {
+            // configForm.classList.add('hidden');
+            // overlay.classList.add('hidden');
+            configForm.style.display = 'none';
+        }
+
+        configForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const config = {
+                host: document.getElementById('host').value,
+                port: parseInt(document.getElementById('port').value),
+                secure: true,
+                auth: {
+                    user: document.getElementById('username').value,
+                    pass: document.getElementById('password').value
+                }
+            };
+            localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
+            hideConfigForm();
+        });
+
+        function initializeChat() {
+            const config = getImapConfig();
+            if (!config) {
+                showConfigForm();
+                return false;
+            }
+            hideConfigForm();
+            return true;
+        }
+
+        async function processServerSentEvents(response) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    messageInput.disabled = false;
+                    processing = false;
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data:')) continue;
+                    const data = line.slice(5).trim();
+                    if (data === '[DONE]') {
+                        processing = false;
+                        messageInput.disabled = false;
+                        continue;
                     }
 
-                    const isCollapsed = group[0].shouldCollapse;
-                    return `<div class="message-group">
-                        ${group.map((msg, i) => `<div class="message ${msg.role}${isCollapsed ? ' collapsed' : ''}" 
-                             onclick="toggleGroup(event)">
-                            <strong>${msg.role}:</strong>
-                            <button class="collapsible">${isCollapsed ? '▼' : '▲'}</button>
-                            <pre style="white-space: pre-wrap;">${msg.content}</pre>
-                        </div>`).join('')}
-                    </div>`;
-                }).join('');
-
-                lastMessageCount = data.chat.length;
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    const message = JSON.parse(data);
+                    const messages = loadMessages();
+                    messages.push(message);
+                    saveMessages(messages);
+                    renderMessages(messages);
+                }
             }
-            messageInput.disabled = !data.userCanTalk;
-            return data.userCanTalk;
         }
 
         inputForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!initializeChat() || processing) return;
+
             const content = messageInput.value.trim();
             if (!content) return;
 
+            processing = true;
             messageInput.value = '';
             messageInput.disabled = true;
 
+            const messages = loadMessages();
+            const newMessage = {
+                id: crypto.randomUUID(),
+                role: 'user',
+                content,
+                timestamp: new Date().toISOString()
+            };
+            messages.push(newMessage);
+            saveMessages(messages);
+            renderMessages(messages);
+
             try {
-                await fetch('/api/chat', {
+                const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content })
+                    body: JSON.stringify({
+                        messages,
+                        imapConfig: getImapConfig()
+                    })
                 });
+
+                if (!response.ok) throw new Error('Failed to send message');
+                await processServerSentEvents(response);
             } catch (error) {
                 console.error('Failed to send message:', error);
+                processing = false;
                 messageInput.disabled = false;
-                return;
             }
-
-            await loadMessages();
         });
 
-        // Initial load and polling
-        loadMessages();
-        setInterval(loadMessages, 1000);
+        // Initialize
+        if (initializeChat()) {
+            loadMessages();
+        }
     </script>
 </body>
+
 </html>
