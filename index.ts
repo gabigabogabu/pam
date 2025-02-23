@@ -230,6 +230,16 @@ const main = async () => {
         routes[regex.source] = handler;
     };
 
+    const staticFileHandler = async (path: string) => {
+        const file = Bun.file(path);
+        if (!await file.exists()) return new Response(undefined, { status: 404 });
+        return new Response(file);
+    };
+
+    app('/', async (req) => {
+        return staticFileHandler('./public/index.html');
+    });
+
     app('/api/chat', async (req) => {
         switch (req.method) {
             case 'GET':

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Email Assistant Chat</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5;
+        }
+
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #messages { 
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 0.8rem;
+            border-radius: 12px;
+            position: relative;
+            transition: opacity 0.2s ease;
+        }
+
+        .message strong {
+            font-size: 0.8em;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+
+        .user {
+            color: #2c3e50;
+            background: #fff;
+            align-self: flex-end;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .assistant, .system, .developer {
+            color: #2c3e50;
+            background: #e3f2fd;
+            align-self: flex-start;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .message pre {
+            margin: 0.5rem 0;
+            white-space: pre-wrap;
+            font-size: 0.95em;
+        }
+
+        .message.collapsed {
+            cursor: pointer;
+            max-width: fit-content;
+            padding: 0.4rem 0.8rem;
+            background: #eee;
+            border-radius: 12px;
+            margin-bottom: 0;
+        }
+
+        .message.collapsed + .message.collapsed {
+            display: none;
+        }
+
+        .message-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+        }
+
+        .message.collapsed pre,
+        .message.collapsed .collapsible {
+            display: none;
+        }
+
+        .message.collapsed strong {
+            display: none;
+        }
+
+        .message.collapsed::after {
+            content: "thinking...";
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .message.system.collapsed,
+        .message.developer.collapsed {
+            opacity: 0.7;
+        }
+
+        .collapsible {
+            position: absolute;
+            right: 0.8rem;
+            top: 0.8rem;
+            border: none;
+            background: rgba(0,0,0,0.1);
+            color: inherit;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 1em;
+            line-height: 1;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+
+        .collapsible:hover {
+            opacity: 1;
+        }
+
+        #input-form {
+            background: white;
+            padding: 1rem;
+            display: flex;
+            gap: 0.8rem;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 0.8rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        #message-input:focus {
+            outline: none;
+            border-color: #2c3e50;
+        }
+
+        #message-input:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        button[type="submit"] {
+            padding: 0 1.5rem;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+
+        button[type="submit"]:hover {
+            background: #34495e;
+        }
+
+        button[type="submit"]:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Email Assistant</h1>
+    </header>
+    <div id="messages"></div>
+    <form id="input-form">
+        <input type="text" id="message-input" placeholder="Ask about your emails..." autocomplete="off">
+        <button type="submit">Send</button>
+    </form>
+    <script>
+        const messagesDiv = document.getElementById('messages');
+        const inputForm = document.getElementById('input-form');
+        const messageInput = document.getElementById('message-input');
+        let lastMessageCount = 0;
+
+        function toggleMessage(event) {
+            const messageDiv = event.currentTarget;
+            if (messageDiv.classList.contains('message')) {
+                messageDiv.classList.toggle('collapsed');
+                const button = messageDiv.querySelector('.collapsible');
+                if (button) {
+                    button.textContent = messageDiv.classList.contains('collapsed') ? '▼' : '▲';
+                }
+            }
+        }
+
+        function toggleGroup(event) {
+            const messageDiv = event.currentTarget;
+            const group = messageDiv.closest('.message-group');
+            if (!group) return;
+            
+            const messages = group.querySelectorAll('.message');
+            messages.forEach(msg => {
+                msg.classList.toggle('collapsed');
+                const button = msg.querySelector('.collapsible');
+                if (button) {
+                    button.textContent = msg.classList.contains('collapsed') ? '▼' : '▲';
+                }
+            });
+        }
+
+        async function loadMessages() {
+            const response = await fetch('/api/chat');
+            const data = await response.json();
+            if (data.chat.length !== lastMessageCount) {
+                // Group messages
+                const messageGroups = [];
+                let currentGroup = [];
+
+                data.chat.forEach((msg, index) => {
+                    const isSystemOrDev = msg.role === 'system' || msg.role === 'developer';
+                    const isAssistantWithCode = msg.role === 'assistant' && msg.content.includes('```');
+                    const shouldCollapse = isSystemOrDev || isAssistantWithCode;
+                    const nextMsg = data.chat[index + 1];
+                    const nextShouldCollapse = nextMsg && 
+                        (nextMsg.role === 'system' || 
+                         nextMsg.role === 'developer' || 
+                         (nextMsg.role === 'assistant' && nextMsg.content.includes('```')));
+
+                    currentGroup.push({
+                        ...msg,
+                        shouldCollapse
+                    });
+
+                    if (!nextShouldCollapse || !shouldCollapse) {
+                        messageGroups.push(currentGroup);
+                        currentGroup = [];
+                    }
+                });
+
+                if (currentGroup.length > 0) {
+                    messageGroups.push(currentGroup);
+                }
+
+                // Render message groups
+                messagesDiv.innerHTML = messageGroups.map(group => {
+                    if (group.length === 1) {
+                        const msg = group[0];
+                        const collapsedClass = msg.shouldCollapse ? ' collapsed' : '';
+                        const toggleText = msg.shouldCollapse ? '▼' : '▲';
+                        return `<div class="message ${msg.role}${collapsedClass}" onclick="toggleMessage(event)">
+                            <strong>${msg.role}:</strong>
+                            <button class="collapsible">${toggleText}</button>
+                            <pre style="white-space: pre-wrap;">${msg.content}</pre>
+                        </div>`;
+                    }
+
+                    const isCollapsed = group[0].shouldCollapse;
+                    return `<div class="message-group">
+                        ${group.map((msg, i) => `<div class="message ${msg.role}${isCollapsed ? ' collapsed' : ''}" 
+                             onclick="toggleGroup(event)">
+                            <strong>${msg.role}:</strong>
+                            <button class="collapsible">${isCollapsed ? '▼' : '▲'}</button>
+                            <pre style="white-space: pre-wrap;">${msg.content}</pre>
+                        </div>`).join('')}
+                    </div>`;
+                }).join('');
+
+                lastMessageCount = data.chat.length;
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+            messageInput.disabled = !data.userCanTalk;
+            return data.userCanTalk;
+        }
+
+        inputForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const content = messageInput.value.trim();
+            if (!content) return;
+
+            messageInput.value = '';
+            messageInput.disabled = true;
+
+            try {
+                await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+            } catch (error) {
+                console.error('Failed to send message:', error);
+                messageInput.disabled = false;
+                return;
+            }
+
+            await loadMessages();
+        });
+
+        // Initial load and polling
+        loadMessages();
+        setInterval(loadMessages, 1000);
+    </script>
+</body>
+</html>
